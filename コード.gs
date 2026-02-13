@@ -33,6 +33,9 @@ function pro_renameFilesInSimpleFolder() {
       const file = files.next();
       const originalFileName = file.getName();
 
+      // 承認版Renamerでリネーム済み([R]付き)のファイルはスキップし、二重リネームを防止
+      if (file.getName().endsWith('[R].pdf')) continue;
+
       if (!namePattern.test(originalFileName) && !originalFileName.startsWith("[AI_ERROR]")) {
         console.log(`未処理ファイルを検出: ${originalFileName}`);
         
@@ -47,7 +50,7 @@ function pro_renameFilesInSimpleFolder() {
             originalExtension = originalFileName.substring(lastDotIndex);
           }
           
-          const newName = `${finalName}${originalExtension}`;
+          const newName = `${finalName}[R]${originalExtension}`;
           
           file.setName(newName);
           console.log(`リネームしました: ${originalFileName} -> ${newName}`);
