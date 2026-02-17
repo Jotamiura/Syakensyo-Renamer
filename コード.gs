@@ -51,12 +51,14 @@ function pro_renameFilesInSimpleFolder() {
           }
           
           const newName = `${finalName}${originalExtension}`;
-          
+
+          // 競合防止: チャット通知をリネーム前に実行
+          // BPO Pipeline Aがリネーム済みファイルを即座にarchiveに移動する可能性があるため、
+          // 通知が確実に送信された後にリネームを行う
+          pro_postFileToChatwork(file, originalFileName, newName);
+
           file.setName(newName);
           console.log(`リネームしました: ${originalFileName} -> ${newName}`);
-
-          // リネーム成功後、Chatworkに通知
-          pro_postFileToChatwork(file, originalFileName);
 
         } else {
           console.error(`AIによる解析に失敗したため、ファイル名を変更してスキップします: ${originalFileName}`);
@@ -71,10 +73,12 @@ function pro_renameFilesInSimpleFolder() {
 
 /**
  * リネームされたファイルの情報をChatworkにメッセージとして投稿する関数
+ * リネーム前に呼び出されるため、新ファイル名は引数で受け取る
  * @param {GoogleAppsScript.Drive.File} file - 投稿するファイルオブジェクト
  * @param {string} originalFileName - 元のファイル名
+ * @param {string} newFileName - リネーム後のファイル名（リネーム実行前に通知するため引数で受け取る）
  */
-function pro_postFileToChatwork(file, originalFileName) {
+function pro_postFileToChatwork(file, originalFileName, newFileName) {
   const properties = PropertiesService.getScriptProperties();
   const apiToken = properties.getProperty('CHATWORK_API_TOKEN');
   const roomId = properties.getProperty('CHATWORK_ROOM_ID');
@@ -85,12 +89,11 @@ function pro_postFileToChatwork(file, originalFileName) {
   }
 
   const url = `https://api.chatwork.com/v2/rooms/${roomId}/messages`;
-  
+
   const fileUrl = file.getUrl();
-  
-  // ★★ 修正 ★★
-  // フォルダリンクを削除し、ファイルリンクのみのシンプルなメッセージに変更
-  const messageBody = `[info][title]車検証ファイルが自動リネームされました[/title]新ファイル名: ${file.getName()}\n${fileUrl}[/info]`;
+
+  // リネーム前に通知するため、file.getName()ではなく引数のnewFileNameを使用
+  const messageBody = `[info][title]車検証ファイルが自動リネームされました[/title]新ファイル名: ${newFileName}\n${fileUrl}[/info]`;
 
 
   const payload = {
