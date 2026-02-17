@@ -50,7 +50,7 @@ function pro_renameFilesInSimpleFolder() {
             originalExtension = originalFileName.substring(lastDotIndex);
           }
           
-          const newName = `${finalName}[R]${originalExtension}`;
+          const newName = `${finalName}${originalExtension}`;
           
           file.setName(newName);
           console.log(`リネームしました: ${originalFileName} -> ${newName}`);
