@@ -78,5 +78,5 @@ Apps Script エディタで `pro_createTimeDrivenTrigger` 関数を実行する�
 ## 使用技術
 
 - Google Apps Script (V8 ランタイム)
-- [Gemini API](https://ai.google.dev/) (gemini-2.5-flash-preview-09-2025)
+- [Gemini API](https://ai.google.dev/) (gemini-2.5-flash)
 - [Chatwork API](https://developer.chatwork.com/) v2
