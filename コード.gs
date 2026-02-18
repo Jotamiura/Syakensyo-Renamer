@@ -17,7 +17,7 @@ const pro_TARGET_FOLDER_ID = "1vP-Y3TsLFDKbY4K79cks6mJVivnSdR7l";
 // ▲▲▲ 設定項目 ▲▲▲
 
 // Gemini APIのエンドポイントURL
-const pro_GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=";
+const pro_GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=";
 
 
 /**
