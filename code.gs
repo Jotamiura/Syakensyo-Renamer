@@ -42,7 +42,7 @@ function pro_renameFilesInSimpleFolder() {
         const suggestedName = pro_getSuggestedNameFromGemini(file);
 
         if (suggestedName && !suggestedName.startsWith("エラー")) {
-          const finalName = suggestedName.split('\n')[0].trim();
+          const finalName = pro_normalizeToHalfWidth(suggestedName.split('\n')[0].trim());
           
           let originalExtension = '';
           const lastDotIndex = originalFileName.lastIndexOf('.');
@@ -126,6 +126,16 @@ function pro_postFileToChatwork(file, originalFileName, newFileName) {
 
 
 /**
+ * 全角英数字を半角に変換する関数。
+ * Gemini が全角数字・英字を返した場合のフォールバック。
+ */
+function pro_normalizeToHalfWidth(str) {
+  return str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)
+  );
+}
+
+/**
  * Gemini APIに画像を送信し、推奨ファイル名を取得する関数。
  */
 function pro_getSuggestedNameFromGemini(file) {
@@ -164,6 +174,7 @@ function pro_getSuggestedNameFromGemini(file) {
 
       4.  **短縮・整形ルール:**
           * (使用者名)、(登録番号)、(車台番号) に含まれる全ての空白（半角・全角）は、**完全に削除**してください。
+          * **数字・英字は必ず半角（ASCII）を使用してください。** 全角数字（０１２３…）や全角英字（Ａ～Ｚ、ａ～ｚ）は使用禁止です。
           * (使用者名) に含まれる法人格は、以下のように短縮してください。
               * \`株式会社\` → \`(株)\`
               * \`合同会社\` → \`(同)\`
