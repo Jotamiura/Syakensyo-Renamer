@@ -1,14 +1,12 @@
 /**
- * @OnlyCurrentDoc
- *
- * Gemini APIを利用して、車検証ファイルを「日付8桁_使用者名_車両番号_車体番号」に自動リネームし、
+ * Gemini APIを利用して、車検証ファイルを「日付8桁_使用者名_車両番号_車体番号.pdf」に自動リネームし、
  * その後Chatworkに通知します。
  * このスクリプトは承認プロセスを介さず、直接ファイルをリネーム・通知します。
  */
 
 // ▼▼▼ 設定項目 ▼▼▼
 // 1. 自動リネームを適用したいフォルダのID
-const pro_TARGET_FOLDER_ID = "1vP-Y3TsLFDKbY4K79cks6mJVivnSdR7l"; 
+const pro_TARGET_FOLDER_ID = "1vP-Y3TsLFDKbY4K79cks6mJVivnSdR7l";
 
 // 2. スクリプトプロパティに以下の3つを設定してください
 //    - GEMINI_API_KEY      : Google AI Studioで取得したAPIキー
@@ -18,6 +16,16 @@ const pro_TARGET_FOLDER_ID = "1vP-Y3TsLFDKbY4K79cks6mJVivnSdR7l";
 
 // Gemini APIのエンドポイントURL
 const pro_GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=";
+
+
+/**
+ * Google Driveが付与する「のコピー」サフィックスを除去する。
+ * 例: "scan001.pdf のコピー" → "scan001.pdf"
+ *     "file.pdf のコピー のコピー" → "file.pdf"
+ */
+function pro_stripCopySuffix(fileName) {
+  return fileName.replace(/( のコピー)+$/g, '');
+}
 
 
 /**
@@ -34,35 +42,55 @@ function pro_renameFilesInSimpleFolder() {
       const originalFileName = file.getName();
 
       // 承認版Renamerでリネーム済み([R]付き)のファイルはスキップし、二重リネームを防止
-      if (file.getName().endsWith('[R].pdf')) continue;
+      if (originalFileName.endsWith('[R].pdf')) continue;
 
-      if (!namePattern.test(originalFileName) && !originalFileName.startsWith("[AI_ERROR]")) {
+      // 「のコピー」を除去してからパターンマッチ（リネーム済みファイルのコピーも正しくスキップ）
+      const cleanFileName = pro_stripCopySuffix(originalFileName);
+
+      if (!namePattern.test(cleanFileName) && !cleanFileName.startsWith("[AI_ERROR]")) {
         console.log(`未処理ファイルを検出: ${originalFileName}`);
-        
+
+        // 「のコピー」が付いていた場合、先にファイル名をクリーンにする
+        if (cleanFileName !== originalFileName) {
+          file.setName(cleanFileName);
+          console.log(`コピーサフィックス除去: ${originalFileName} -> ${cleanFileName}`);
+        }
+
         const suggestedName = pro_getSuggestedNameFromGemini(file);
 
         if (suggestedName && !suggestedName.startsWith("エラー")) {
           const finalName = pro_normalizeToHalfWidth(suggestedName.split('\n')[0].trim());
-          
+
+          // クリーン済みファイル名から拡張子を取得（「のコピー」混入を防止）
           let originalExtension = '';
-          const lastDotIndex = originalFileName.lastIndexOf('.');
-          if (lastDotIndex > 0 && lastDotIndex < originalFileName.length - 1) {
-            originalExtension = originalFileName.substring(lastDotIndex);
+          const lastDotIndex = cleanFileName.lastIndexOf('.');
+          if (lastDotIndex > 0 && lastDotIndex < cleanFileName.length - 1) {
+            originalExtension = cleanFileName.substring(lastDotIndex);
           }
-          
+
+          // 拡張子がない/非PDFだがMIMEタイプがPDFの場合、.pdfを強制付与
+          if (!originalExtension && file.getMimeType() === 'application/pdf') {
+            originalExtension = '.pdf';
+          }
           const newName = `${finalName}${originalExtension}`;
 
           // 競合防止: チャット通知をリネーム前に実行
           // BPO Pipeline Aがリネーム済みファイルを即座にarchiveに移動する可能性があるため、
           // 通知が確実に送信された後にリネームを行う
-          pro_postFileToChatwork(file, originalFileName, newName);
+          // [reprocess] マーク付き = 再中継ファイル → 通知スキップ
+          const fileDesc = file.getDescription() || '';
+          if (fileDesc.indexOf('[reprocess]') < 0) {
+            pro_postFileToChatwork(file, cleanFileName, newName);
+          } else {
+            console.log(`再処理ファイルのため通知スキップ: ${cleanFileName}`);
+          }
 
           file.setName(newName);
-          console.log(`リネームしました: ${originalFileName} -> ${newName}`);
+          console.log(`リネームしました: ${cleanFileName} -> ${newName}`);
 
         } else {
-          console.error(`AIによる解析に失敗したため、ファイル名を変更してスキップします: ${originalFileName}`);
-          file.setName(`[AI_ERROR]_${originalFileName}`);
+          console.error(`AIによる解析に失敗したため、ファイル名を変更してスキップします: ${cleanFileName}`);
+          file.setName(`[AI_ERROR]_${cleanFileName}`);
         }
       }
     }
@@ -189,12 +217,12 @@ function pro_getSuggestedNameFromGemini(file) {
           * 説明、前置き、箇条書き、追加のテキストは一切含めないでください。
           * **応答は、生成されたファイル名文字列のみ**にしてください。
     `;
-    
+
     const imageBlob = file.getBlob();
     const base64ImageData = Utilities.base64Encode(imageBlob.getBytes());
     const payload = { contents: [{ parts: [ { text: prompt }, { inlineData: { mimeType: imageBlob.getContentType(), data: base64ImageData } } ] }] };
     const options = { method: 'post', contentType: 'application/json', payload: JSON.stringify(payload), muteHttpExceptions: true };
-    
+
     const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
     if (!apiKey) {
       console.error("Gemini APIキーがスクリプトプロパティに設定されていません。");
@@ -232,6 +260,6 @@ function pro_createTimeDrivenTrigger() {
     .timeBased()
     .everyMinutes(10)
     .create();
-  
+
   console.log("10分ごとの自動実行トリガーを設定しました。");
 }
